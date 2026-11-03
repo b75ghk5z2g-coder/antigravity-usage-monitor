@@ -13,7 +13,7 @@ import sqlite3
 import webbrowser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 PORT = 7890
 HOST = "127.0.0.1"
@@ -40,6 +40,15 @@ def clean_model_name(raw_name: str) -> str:
     if not raw_name:
         return "Unknown Model"
     return MODEL_DISPLAY_NAMES.get(raw_name, raw_name)
+
+def classify_model(raw_name: str) -> str:
+    low = (raw_name or "").lower()
+    if "argon" in low:
+        return "argon"
+    elif "claude" in low or "gpt" in low:
+        return "claude_gpt"
+    else:
+        return "gemini"
 
 def get_conversation_metadata():
     titles = {}
@@ -91,6 +100,97 @@ def compute_model_stats(events):
 
     models_list = sorted(summary.values(), key=lambda x: x["total"], reverse=True)
     return totals, models_list
+
+def compute_quota_tiers(all_events):
+    now_utc = datetime.now(timezone.utc)
+    tiers = {
+        "gemini": {
+            "title": "Gemini Models",
+            "icon": "✦",
+            "color": "#38bdf8",
+            "limits": [
+                {"name": "Five Hour Limit Remaining", "hours": 5, "base_tokens": 75_000_000},
+                {"name": "Weekly Limit Remaining", "hours": 168, "base_tokens": 250_000_000}
+            ]
+        },
+        "claude_gpt": {
+            "title": "Claude and GPT models",
+            "icon": "✦",
+            "color": "#fb923c",
+            "limits": [
+                {"name": "Five Hour Limit Remaining", "hours": 5, "base_tokens": 10_000_000},
+                {"name": "Weekly Limit Remaining", "hours": 168, "base_tokens": 50_000_000}
+            ]
+        },
+        "argon": {
+            "title": "Gemini 4 Argon",
+            "icon": "✦",
+            "color": "#c084fc",
+            "limits": [
+                {"name": "Gemini 4 Argon Weekly Limit", "hours": 168, "base_tokens": 20_000_000}
+            ]
+        }
+    }
+
+    tier_results = []
+
+    for cat_key, t_cfg in tiers.items():
+        cat_events = []
+        for e in all_events:
+            if classify_model(e.get("raw_model", "")) == cat_key and e.get("timestamp"):
+                try:
+                    dt = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
+                    cat_events.append((dt, e["total"]))
+                except Exception:
+                    pass
+
+        limit_items = []
+        for lim in t_cfg["limits"]:
+            hours = lim["hours"]
+            base = lim["base_tokens"]
+            cutoff = now_utc - timedelta(hours=hours)
+            win_events = [ev for ev in cat_events if ev[0] >= cutoff]
+            used_tokens = sum(ev[1] for ev in win_events)
+
+            if used_tokens > 0:
+                pct_used = min(100.0, max(1.0, (used_tokens / base) * 100))
+                pct_rem = int(round(100.0 - pct_used))
+            else:
+                pct_used = 0.0
+                pct_rem = 100
+
+            if win_events:
+                oldest_dt = min(ev[0] for ev in win_events)
+                reset_dt = oldest_dt + timedelta(hours=hours)
+                rem_sec = max(0, int((reset_dt - now_utc).total_seconds()))
+                rem_d = rem_sec // 86400
+                rem_h = (rem_sec % 86400) // 3600
+                rem_m = (rem_sec % 3600) // 60
+                if rem_d > 0:
+                    timer_str = f"refreshes in {rem_d}d, {rem_h}h"
+                elif rem_h > 0:
+                    timer_str = f"refreshes in {rem_h}h, {rem_m}m"
+                else:
+                    timer_str = f"refreshes in {rem_m}m"
+            else:
+                timer_str = "Fully refreshed"
+
+            limit_items.append({
+                "name": lim["name"],
+                "remaining_pct": pct_rem,
+                "used_pct": pct_used,
+                "used_tokens": used_tokens,
+                "timer": timer_str
+            })
+
+        tier_results.append({
+            "key": cat_key,
+            "title": t_cfg["title"],
+            "color": t_cfg["color"],
+            "limits": limit_items
+        })
+
+    return tier_results
 
 def parse_all_usage():
     titles, active_id = get_conversation_metadata()
@@ -177,6 +277,7 @@ def parse_all_usage():
                             "timestamp": created_at,
                             "conversation_id": cid,
                             "conversation_title": convo_title,
+                            "raw_model": model_raw,
                             "model": model_name,
                             "input": inp,
                             "output": out,
@@ -201,9 +302,12 @@ def parse_all_usage():
     totals_today, models_today = compute_model_stats(today_events)
     totals_active, models_active = compute_model_stats(active_events)
 
+    quota_tiers = compute_quota_tiers(all_events)
+
     return {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "active_conversation_id": active_id,
+        "quota_tiers": quota_tiers,
         "views": {
             "all": {
                 "totals": totals_all,
@@ -223,7 +327,7 @@ def parse_all_usage():
     }
 
 HTML_DASHBOARD = r"""<!DOCTYPE html>
-<html lang="sk">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -242,7 +346,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       --accent-gemini: #38bdf8;
       --accent-claude: #f97316;
       --accent-green: #10b981;
-      --accent-purple: #a855f7;
+      --accent-purple: #c084fc;
       --bar-bg: #1e293b;
     }
     * {
@@ -356,18 +460,69 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--text-dim);
     }
 
+    /* Section Headers */
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Quota Tiers Grid */
+    .tiers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .tier-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .tier-header {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .tier-limit-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tier-limit-top {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+    .tier-timer {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
     /* Stat Cards */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
-      margin-bottom: 30px;
+      margin-bottom: 28px;
     }
     .stat-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 20px 22px;
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -397,7 +552,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       letter-spacing: 0.6px;
     }
     .stat-val {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 700;
       color: var(--text);
       font-feature-settings: "tnum";
@@ -407,31 +562,21 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       color: var(--text-dim);
     }
 
-    /* Section Headers */
-    .section-title {
-      font-size: 19px;
-      font-weight: 700;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
     /* Models Cards */
     .models-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-      gap: 18px;
-      margin-bottom: 34px;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 16px;
+      margin-bottom: 30px;
     }
     .model-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 22px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       transition: transform 0.15s, border-color 0.15s;
     }
     .model-card:hover {
@@ -445,13 +590,13 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       gap: 10px;
     }
     .model-name {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--text);
     }
     .model-badge {
       font-size: 12px;
-      padding: 4px 10px;
+      padding: 3px 9px;
       border-radius: 9999px;
       font-weight: 700;
       white-space: nowrap;
@@ -467,16 +612,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       border: 1px solid rgba(249, 115, 22, 0.35);
     }
     .badge-other {
-      background: rgba(168, 85, 247, 0.15);
+      background: rgba(192, 132, 252, 0.15);
       color: #c084fc;
-      border: 1px solid rgba(168, 85, 247, 0.35);
+      border: 1px solid rgba(192, 132, 252, 0.35);
     }
     .token-breakdown-row {
       display: flex;
       justify-content: space-between;
       font-size: 13px;
       color: var(--text-muted);
-      padding: 6px 0;
+      padding: 5px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
     .token-breakdown-row:last-child {
@@ -491,12 +636,12 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     /* Mini Progress Bar */
     .bar-container {
       width: 100%;
-      height: 9px;
+      height: 7px;
       background: var(--bar-bg);
-      border-radius: 5px;
+      border-radius: 4px;
       overflow: hidden;
       display: flex;
-      margin-top: 6px;
+      margin-top: 5px;
     }
     .bar-segment {
       height: 100%;
@@ -519,7 +664,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 22px;
+      padding: 20px;
       overflow-x: auto;
     }
     table {
@@ -538,7 +683,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       letter-spacing: 0.6px;
     }
     td {
-      padding: 12px;
+      padding: 11px 12px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       color: var(--text-muted);
     }
@@ -598,6 +743,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         </div>
       </div>
     </header>
+
+    <!-- Quota Tiers Section -->
+    <div class="section-title">
+      <span>Antigravity Quota Tiers & Limits</span>
+    </div>
+    <div class="tiers-grid" id="tiers-container">
+      <!-- Injected by JS -->
+    </div>
 
     <div class="controls-row">
       <div class="pill-filters">
@@ -738,6 +891,38 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     function render(data) {
       document.getElementById('last-updated').textContent = 'Last synced: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+
+      // Render Quota Tiers
+      const tiersContainer = document.getElementById('tiers-container');
+      tiersContainer.innerHTML = '';
+      (data.quota_tiers || []).forEach(tier => {
+        const card = document.createElement('div');
+        card.className = 'tier-card';
+        let limitsHtml = '';
+        tier.limits.forEach(lim => {
+          const color = lim.remaining_pct >= 70 ? '#22c55e' : (lim.remaining_pct >= 40 ? '#f59e0b' : '#ef4444');
+          limitsHtml += `
+            <div class="tier-limit-row">
+              <div class="tier-limit-top">
+                <span style="font-weight:600;">${lim.name}</span>
+                <span style="font-weight:700; color:${color};">${lim.remaining_pct}%</span>
+              </div>
+              <div class="tier-timer">${lim.timer}</div>
+              <div class="bar-container">
+                <div class="bar-segment" style="width:${lim.used_pct}%; background:${color};"></div>
+              </div>
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="tier-header" style="color:${tier.color};">
+            <span>✦</span> <span>${tier.title}</span>
+          </div>
+          ${limitsHtml}
+        `;
+        tiersContainer.appendChild(card);
+      });
 
       const view = data.views[currentFilter] || data.views['all'];
       const totals = view.totals;
