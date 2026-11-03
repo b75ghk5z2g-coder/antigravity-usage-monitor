@@ -585,48 +585,48 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         <div class="logo-badge">AG</div>
         <div>
           <h1>Antigravity Real-Time Model Usage</h1>
-          <p style="font-size: 13px; color: var(--text-muted);">Sledovanie spotreby modelov a tokenov v reálnom čase</p>
+          <p style="font-size: 13px; color: var(--text-muted);">Real-time model & token usage monitoring</p>
         </div>
       </div>
       <div class="live-status">
         <div class="pulse-dot"></div>
-        <span>LIVE (Obnova každé 2s)</span>
+        <span>LIVE (Updates every 2s)</span>
       </div>
     </header>
 
     <div class="controls-row">
       <div class="pill-filters">
-        <button class="pill-btn active" id="btn-all" onclick="setFilter('all')">Všetko (All Time)</button>
-        <button class="pill-btn" id="btn-today" onclick="setFilter('today')">Dnes (Today)</button>
-        <button class="pill-btn" id="btn-active" onclick="setFilter('active')">Aktuálna relácia</button>
+        <button class="pill-btn active" id="btn-all" onclick="setFilter('all')">All Time</button>
+        <button class="pill-btn" id="btn-today" onclick="setFilter('today')">Today</button>
+        <button class="pill-btn" id="btn-active" onclick="setFilter('active')">Active Session</button>
       </div>
-      <div class="refresh-info" id="last-updated">Aktualizované: ...</div>
+      <div class="refresh-info" id="last-updated">Updated: ...</div>
     </div>
 
     <!-- Top Total Metric Cards -->
     <div class="stats-grid">
       <div class="stat-card c-primary">
-        <div class="stat-label">Počet Požiadaviek</div>
+        <div class="stat-label">Total Requests</div>
         <div class="stat-val" id="total-requests">0</div>
-        <div class="stat-sub">Celkový počet volaní modelov</div>
+        <div class="stat-sub">Total model invocations</div>
       </div>
       <div class="stat-card c-accent">
-        <div class="stat-label">Input Tokeny</div>
+        <div class="stat-label">Input Tokens</div>
         <div class="stat-val" id="total-input">0</div>
-        <div class="stat-sub">Kontext a používateľské prompt-y</div>
+        <div class="stat-sub">Context & user prompts</div>
       </div>
       <div class="stat-card c-green">
-        <div class="stat-label">Output Tokeny</div>
+        <div class="stat-label">Output Tokens</div>
         <div class="stat-val" id="total-output">0</div>
-        <div class="stat-sub">Vygenerované odpovede & nástroje</div>
+        <div class="stat-sub">Generated responses & tools</div>
       </div>
       <div class="stat-card c-purple">
-        <div class="stat-label">Cache Read Tokeny</div>
+        <div class="stat-label">Cache Read Tokens</div>
         <div class="stat-val" id="total-cache">0</div>
-        <div class="stat-sub">Ušetrené cez prompt caching</div>
+        <div class="stat-sub">Saved via prompt caching</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Celkovo Tokenov</div>
+        <div class="stat-label">Grand Total Tokens</div>
         <div class="stat-val" id="grand-total">0</div>
         <div class="stat-sub">Input + Output + Cache</div>
       </div>
@@ -634,7 +634,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     <!-- Per Model Breakdown -->
     <div class="section-title">
-      <span>Spotreba podľa jednotlivých modelov</span>
+      <span>Usage by Model</span>
     </div>
     <div class="models-grid" id="models-container">
       <!-- Injected by JS -->
@@ -645,16 +645,16 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <!-- Conversations -->
       <div class="table-container">
         <div class="section-title" style="margin-bottom: 14px;">
-          <span>Konverzácie & Úlohy</span>
+          <span>Conversations & Tasks</span>
         </div>
         <table>
           <thead>
             <tr>
-              <th>Názov konverzácie</th>
-              <th>Volania</th>
+              <th>Conversation Title</th>
+              <th>Calls</th>
               <th>Input</th>
               <th>Output</th>
-              <th>Spolu</th>
+              <th>Total</th>
             </tr>
           </thead>
           <tbody id="convos-tbody">
@@ -666,15 +666,15 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       <!-- Recent Live Events -->
       <div class="table-container">
         <div class="section-title" style="margin-bottom: 14px;">
-          <span>Najnovšie aktivity modelov</span>
+          <span>Recent Model Activity</span>
         </div>
         <table>
           <thead>
             <tr>
-              <th>Čas</th>
+              <th>Time</th>
               <th>Model</th>
-              <th>Tokeny (In / Out / Cache)</th>
-              <th>Konverzácia</th>
+              <th>Tokens (In / Out / Cache)</th>
+              <th>Conversation</th>
             </tr>
           </thead>
           <tbody id="events-tbody">
@@ -691,14 +691,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
     function formatNumber(num) {
       if (!num && num !== 0) return '0';
-      return num.toLocaleString('sk-SK');
+      return num.toLocaleString('en-US');
     }
 
     function formatTime(isoStr) {
       if (!isoStr) return '-';
       try {
         const d = new Date(isoStr);
-        return d.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
       } catch (e) {
         return isoStr;
       }
@@ -732,7 +732,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
     }
 
     function render(data) {
-      document.getElementById('last-updated').textContent = 'Posledná synchronizácia: ' + new Date().toLocaleTimeString('sk-SK');
+      document.getElementById('last-updated').textContent = 'Last synced: ' + new Date().toLocaleTimeString('en-US', { hour12: false });
 
       const view = data.views[currentFilter] || data.views['all'];
       const totals = view.totals;
@@ -750,7 +750,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       modelsContainer.innerHTML = '';
 
       if (!models || models.length === 0) {
-        modelsContainer.innerHTML = '<div style="color:var(--text-dim); padding:24px;">Pre zvolený filter nie sú evidované žiadne požiadavky.</div>';
+        modelsContainer.innerHTML = '<div style="color:var(--text-dim); padding:24px;">No requests recorded for the selected filter.</div>';
       } else {
         models.forEach(m => {
           const inPct = m.total ? ((m.input / m.total) * 100).toFixed(1) : 0;
@@ -763,9 +763,9 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
             <div class="model-header">
               <div>
                 <div class="model-name">${m.name}</div>
-                <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">Posledné volanie: ${formatTime(m.last_used)}</div>
+                <div style="font-size:12px; color:var(--text-dim); margin-top:2px;">Last call: ${formatTime(m.last_used)}</div>
               </div>
-              <span class="model-badge ${getBadgeClass(m.name)}">${m.requests} ${m.requests === 1 ? 'volanie' : (m.requests < 5 ? 'volania' : 'volaní')}</span>
+              <span class="model-badge ${getBadgeClass(m.name)}">${m.requests} ${m.requests === 1 ? 'call' : 'calls'}</span>
             </div>
             
             <div>
@@ -781,19 +781,19 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
 
             <div style="margin-top:4px;">
               <div class="token-breakdown-row">
-                <span>Input tokeny:</span>
+                <span>Input tokens:</span>
                 <span class="token-val" style="color:var(--primary-light);">${formatNumber(m.input)}</span>
               </div>
               <div class="token-breakdown-row">
-                <span>Output tokeny:</span>
+                <span>Output tokens:</span>
                 <span class="token-val" style="color:var(--accent-green);">${formatNumber(m.output)}</span>
               </div>
               <div class="token-breakdown-row">
-                <span>Cache Read tokeny:</span>
+                <span>Cache Read tokens:</span>
                 <span class="token-val" style="color:var(--accent-purple);">${formatNumber(m.cache)}</span>
               </div>
               <div class="token-breakdown-row" style="font-weight:700; margin-top:6px; padding-top:6px; border-top:1px solid var(--card-border);">
-                <span>Spolu tokenov:</span>
+                <span>Total tokens:</span>
                 <span class="token-val">${formatNumber(m.total)}</span>
               </div>
             </div>
@@ -807,7 +807,7 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
       convosTbody.innerHTML = '';
       (data.conversations || []).forEach(c => {
         const tr = document.createElement('tr');
-        const activeBadge = c.is_active ? '<span class="active-convo-pill">Aktuálna</span>' : '';
+        const activeBadge = c.is_active ? '<span class="active-convo-pill">Active</span>' : '';
         tr.innerHTML = `
           <td>
             <div class="convo-title" title="${c.title}">${c.title} ${activeBadge}</div>
@@ -874,9 +874,9 @@ def main():
     server = HTTPServer((HOST, PORT), TrackerHandler)
     url = f"http://{HOST}:{PORT}"
     print("=" * 65)
-    print(f" Antigravity Model Usage Tracker beží na: {url}")
-    print(" Sleduje spotrebu tokenov a modely v reálnom čase.")
-    print(" Pre ukončenie stlačte Ctrl+C")
+    print(f" Antigravity Model Usage Tracker running at: {url}")
+    print(" Monitoring token usage and models in real-time.")
+    print(" Press Ctrl+C to stop")
     print("=" * 65)
 
     if open_browser:
@@ -888,7 +888,7 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nTracker zastavený.")
+        print("\nTracker stopped.")
         server.server_close()
 
 if __name__ == "__main__":

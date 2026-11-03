@@ -36,7 +36,7 @@
 │   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■                0 in window │
 │                                                            │
 ╰────────────────────────────────────────────────────────────╯
- Obnova každé 2s | Čas: 10:11:03 | Ukončenie: Ctrl+C
+ Refreshes every 2s | Time: 10:11:03 | Quit: Ctrl+C
 ```
 
 ---

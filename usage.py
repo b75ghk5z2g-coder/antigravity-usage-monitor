@@ -282,7 +282,7 @@ def render_terminal():
     lines.append(bottom_border)
 
     local_time = datetime.now().strftime("%H:%M:%S")
-    footer = f" {C_MUTED}Obnova každé 2s | Čas: {local_time} | Ukončenie: Ctrl+C{C_RESET}"
+    footer = f" {C_MUTED}Refreshes every 2s | Time: {local_time} | Quit: Ctrl+C{C_RESET}"
     lines.append(footer)
 
     sys.stdout.write("\n".join(lines) + "\n")
@@ -301,7 +301,7 @@ def main():
     finally:
         sys.stdout.write("\033[?25h\n")
         sys.stdout.flush()
-        print(f"{C_MUTED}Usage Monitor ukončený.{C_RESET}")
+        print(f"{C_MUTED}Usage Monitor stopped.{C_RESET}")
 
 if __name__ == "__main__":
     main()
