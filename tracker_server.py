@@ -588,9 +588,14 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
           <p style="font-size: 13px; color: var(--text-muted);">Real-time model & token usage monitoring</p>
         </div>
       </div>
-      <div class="live-status">
-        <div class="pulse-dot"></div>
-        <span>LIVE (Updates every 2s)</span>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button onclick="togglePiP()" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; padding: 7px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <span>📌</span> <span>Pin on Top (PiP)</span>
+        </button>
+        <div class="live-status">
+          <div class="pulse-dot"></div>
+          <span>LIVE (Updates every 2s)</span>
+        </div>
       </div>
     </header>
 
@@ -838,6 +843,68 @@ HTML_DASHBOARD = r"""<!DOCTYPE html>
         `;
         eventsTbody.appendChild(tr);
       });
+    }
+
+    async function togglePiP() {
+      if ('documentPictureInPicture' in window) {
+        try {
+          const pipWindow = await documentPictureInPicture.requestWindow({
+            width: 360,
+            height: 310,
+          });
+          const container = document.createElement('div');
+          container.style.padding = '14px';
+          container.style.background = '#090d16';
+          container.style.color = '#f8fafc';
+          container.style.minHeight = '100vh';
+          container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          container.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <b style="font-size:13px; color:#38bdf8;">● AG Mini Monitor</b>
+              <span style="font-size:11px; color:#94a3b8;" id="pip-time"></span>
+            </div>
+            <div id="pip-models" style="display:flex; flex-direction:column; gap:8px;"></div>
+          `;
+          pipWindow.document.body.style.margin = '0';
+          pipWindow.document.body.appendChild(container);
+
+          function updatePip() {
+            if (!rawData) return;
+            const view = rawData.views['all'];
+            const mContainer = pipWindow.document.getElementById('pip-models');
+            const tSpan = pipWindow.document.getElementById('pip-time');
+            if (tSpan) tSpan.textContent = new Date().toLocaleTimeString('en-US', {hour12:false});
+            if (mContainer && view.models) {
+              mContainer.innerHTML = '';
+              view.models.slice(0, 4).forEach(m => {
+                const card = document.createElement('div');
+                card.style.background = '#101626';
+                card.style.border = '1px solid #1e283d';
+                card.style.borderRadius = '8px';
+                card.style.padding = '8px 10px';
+                card.innerHTML = `
+                  <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                    <b style="color:#f8fafc;">${m.name.replace(/\(.*?\)/, '').trim()}</b>
+                    <span style="color:#60a5fa; font-weight:600;">${m.requests} calls</span>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8;">
+                    <span>Total: ${(m.total / 1000).toFixed(0)}k tok</span>
+                    <span>In: ${(m.input / 1000).toFixed(0)}k</span>
+                  </div>
+                `;
+                mContainer.appendChild(card);
+              });
+            }
+          }
+          updatePip();
+          const interval = setInterval(updatePip, 2000);
+          pipWindow.addEventListener('pagehide', () => clearInterval(interval));
+          return;
+        } catch (e) {
+          console.log('PiP failed, opening popup', e);
+        }
+      }
+      window.open('/', 'AGMini', 'width=360,height=420,menubar=no,toolbar=no,location=no,status=no');
     }
 
     fetchUsage();

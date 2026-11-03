@@ -49,6 +49,9 @@
   - **Gemini 4 Argon** (Weekly Limit)
 - ⏳ **Live Countdown Timers**: Automatically calculates and displays time remaining until your 5-hour and 7-day rate limits fully reset.
 - 🎨 **Sleek Segmented UI**: Terminal card with colored block progress bars (Green ➔ Lime ➔ Yellow ➔ Orange ➔ Red) and token breakdown.
+- 📌 **Always-on-Top Floating Mini Dashboard**:
+  - **Native Desktop Widget**: Draggable, dark-mode overlay pinned on top of any window (`floating.bat` / `floating_widget.py`).
+  - **Browser Picture-in-Picture (PiP)**: Pop out a floating mini-widget with one click from the web UI.
 - 🌐 **Optional Web Dashboard**: Includes a standalone modern dark-mode browser dashboard (`http://localhost:7890`) with detailed conversation and request breakdowns.
 - 🔒 **100% Local & Private**: Reads directly from your local Antigravity transcripts and databases. No API keys, no logins, and zero external network requests.
 - 📦 **Zero Dependencies**: Written purely in Python's standard library (`sqlite3`, `json`, `datetime`, `http.server`). No `pip install` required!
@@ -80,7 +83,28 @@ chmod +x usage.sh
 
 ---
 
-## 🌐 Web Dashboard (Optional)
+## 📌 3. Always-on-Top Floating Desktop Widget
+
+Want a sleek mini-card floating in the corner of your screen that stays **on top of Antigravity, VS Code, and browser windows**?
+
+**Windows (Single Click, no console window):**
+```powershell
+.\floating.bat
+# or: pyw floating_widget.py
+```
+
+**macOS / Linux:**
+```bash
+python3 floating_widget.py
+```
+
+- **Draggable**: Click and drag the header to move it anywhere.
+- **Pin / Unpin (📌)**: Toggle Always-on-Top on/off.
+- **Collapse (─)**: Collapse to a compact mini title bar.
+
+---
+
+## 🌐 4. Web Dashboard & Picture-in-Picture
 
 If you prefer an interactive browser GUI with detailed history per project and live activity logs:
 
