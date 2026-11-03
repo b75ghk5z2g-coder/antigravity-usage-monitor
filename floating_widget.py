@@ -9,13 +9,25 @@ Sleek, modern floating desktop widget with multiple switchable styles:
 
 import os
 import sys
+import traceback
+
+# Ensure working directory is this script's directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.chdir(SCRIPT_DIR)
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
 import ctypes
 from ctypes import c_int, byref, sizeof
 import tkinter as tk
+from tkinter import messagebox
 from datetime import datetime, timezone, timedelta
 
 # Import data parsing logic from usage.py
-from usage import parse_events_by_category
+try:
+    from usage import parse_events_by_category
+except Exception as e:
+    parse_events_by_category = lambda: {"gemini": [], "claude_gpt": [], "argon": []}
 
 # Colors
 BG_DARK = "#090d16"
@@ -47,11 +59,13 @@ def get_status_color(pct_used):
 class SleekFloatingWidget:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("Antigravity Usage")
+        self.root.title("Antigravity Usage Monitor")
         
+        # Hide while setting up geometry
+        self.root.withdraw()
+
         # Window flags
         self.is_pinned = True
-        self.is_compact = False
         self.current_style = 1 # 1: Cupertino Blocks, 2: Minimal Lines, 3: Bento
         
         self.root.attributes("-topmost", True)
@@ -62,15 +76,12 @@ class SleekFloatingWidget:
         self.width = 350
         self.height = 360
         
-        # Top-right screen placement
+        # Position at top-right of primary screen
         screen_w = self.root.winfo_screenwidth()
-        x = screen_w - self.width - 24
-        y = 36
+        x = max(20, screen_w - self.width - 30)
+        y = 50
         self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
         self.root.configure(bg=BORDER_COLOR)
-
-        # Apply Windows 11 DWM rounded corners if available
-        self.apply_win11_style()
 
         # Main inner container
         self.container = tk.Frame(self.root, bg=BG_DARK, bd=0)
@@ -88,6 +99,15 @@ class SleekFloatingWidget:
         # Render initial view
         self.rebuild_view()
 
+        # Update and show
+        self.root.update_idletasks()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.attributes("-topmost", True)
+
+        # Apply Windows 11 DWM rounded corners if available
+        self.apply_win11_style()
+
         # Start 2s update loop
         self.refresh_stats()
 
@@ -95,10 +115,11 @@ class SleekFloatingWidget:
         """Enable Windows 11 rounded window corners & dark mode frame via DWM."""
         try:
             hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
-            # DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 33, byref(c_int(2)), sizeof(c_int))
-            # DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, byref(c_int(1)), sizeof(c_int))
+            if not hwnd:
+                hwnd = self.root.winfo_id()
+            if hwnd:
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 33, byref(c_int(2)), sizeof(c_int))
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, byref(c_int(1)), sizeof(c_int))
         except Exception:
             pass
 
@@ -244,7 +265,7 @@ class SleekFloatingWidget:
         data = self.get_data()
 
         if self.current_style == 1:
-            # STYLE 1: Cupertino Segmented Rounded Blocks (Screenshot Replica)
+            # STYLE 1: Cupertino Segmented Rounded Blocks
             for item in data:
                 row_box = tk.Frame(self.content_frame, bg=BG_DARK)
                 row_box.pack(fill="x", pady=4)
@@ -276,7 +297,7 @@ class SleekFloatingWidget:
                 self.row_widgets.append({"type": "blocks", "info_lbl": lbl_info, "canvas": canvas, "item": item})
 
         elif self.current_style == 2:
-            # STYLE 2: Nordic Minimalist (Thin continuous gradient gauge lines)
+            # STYLE 2: Nordic Minimalist
             for item in data:
                 row_box = tk.Frame(self.content_frame, bg=BG_DARK)
                 row_box.pack(fill="x", pady=5)
@@ -359,7 +380,6 @@ class SleekFloatingWidget:
                     color = get_status_color(pct_used)
 
                     if r["type"] == "blocks":
-                        # Draw 15 rounded rectangular blocks
                         num_blocks = 15
                         gap = 4
                         block_w = max(4, int((w - (gap * (num_blocks - 1))) / num_blocks))
@@ -376,7 +396,6 @@ class SleekFloatingWidget:
                             canvas.create_rectangle(bx1, 0, bx2, block_h, fill=b_fill, outline="")
 
                     elif r["type"] == "line":
-                        # Smooth continuous progress bar
                         fill_w = max(2, int((pct_used / 100.0) * w))
                         canvas.create_rectangle(0, 0, w, 4, fill=BLOCK_EMPTY, outline="")
                         if pct_used > 0:
@@ -388,8 +407,15 @@ class SleekFloatingWidget:
         self.root.after(2000, self.refresh_stats)
 
 def main():
-    app = SleekFloatingWidget()
-    app.root.mainloop()
+    try:
+        app = SleekFloatingWidget()
+        app.root.mainloop()
+    except Exception as e:
+        err_msg = traceback.format_exc()
+        try:
+            messagebox.showerror("Antigravity Usage Monitor Error", f"Failed to start floating widget:\n\n{err_msg}")
+        except Exception:
+            print(err_msg, file=sys.stderr)
 
 if __name__ == "__main__":
     main()
