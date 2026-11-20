@@ -4,7 +4,7 @@ Antigravity Terminal Usage Monitor
 Real-time tracking of Antigravity Quota Tiers & Limits:
 - Gemini Models (Weekly & 5-Hour Limits)
 - Claude & GPT models (Weekly & 5-Hour Limits)
-- Gemini 4 Argon (Weekly Limit)
+- Gemini 4 Hydrogen (Weekly Limit)
 """
 
 import os
@@ -44,12 +44,12 @@ LIMIT_CONFIG = {
             "weekly": {"name": "Weekly Limit Remaining", "hours": 168, "base_tokens": 50_000_000}
         }
     },
-    "argon": {
-        "title": "Gemini 4 Argon",
+    "gemini4": {
+        "title": "Gemini 4 Hydrogen",
         "color_code": "\033[38;2;192;132;252m", # Purple
         "icon": "✦",
         "limits": {
-            "weekly": {"name": "Gemini 4 Argon Weekly Limit", "hours": 168, "base_tokens": 20_000_000}
+            "weekly": {"name": "Gemini 4 Hydrogen Weekly Limit", "hours": 168, "base_tokens": 20_000_000}
         }
     }
 }
@@ -95,15 +95,15 @@ def format_tokens(n: int) -> str:
 
 def classify_model(raw_name: str) -> str:
     low = (raw_name or "").lower()
-    if "argon" in low:
-        return "argon"
+    if "hydrogen" in low or "argon" in low or "gemini-4" in low:
+        return "gemini4"
     elif "claude" in low or "gpt" in low:
         return "claude_gpt"
     else:
         return "gemini"
 
 def parse_events_by_category():
-    events = {"gemini": [], "claude_gpt": [], "argon": []}
+    events = {"gemini": [], "claude_gpt": [], "gemini4": []}
     db_files = glob.glob(os.path.join(CONVERSATIONS_DIR, "*.db"))
 
     for db_path in db_files:
@@ -117,8 +117,8 @@ def parse_events_by_category():
             cur.execute("SELECT idx, data FROM gen_metadata ORDER BY idx ASC")
             for idx, data in cur.fetchall():
                 pos = data.find(b"last_step_index")
-                m_resp = re.findall(rb'(gemini-[a-zA-Z0-9.\-_]+|claude-[a-zA-Z0-9.\-_]+|gpt-[a-zA-Z0-9.\-_]+)', data)
-                model_raw = m_resp[0].decode("ascii", errors="ignore") if m_resp else "gemini-3.8-flash-n"
+                m_resp = re.findall(rb'(gemini-(?!api\b)[a-zA-Z0-9.\-_]+|claude-[a-zA-Z0-9.\-_]+|gpt-[a-zA-Z0-9.\-_]+)', data)
+                model_raw = m_resp[-1].decode("ascii", errors="ignore") if m_resp else "gemini-4-hydrogen"
                 cat = classify_model(model_raw)
                 fallback_cat = cat
 
@@ -182,7 +182,7 @@ def render_terminal():
     lines.append(f"{C_BORDER}│{C_RESET}{title_left}{' ' * gap_title}{title_right}{C_BORDER}│{C_RESET}")
     lines.append(f"{C_BORDER}├{'─' * (box_width - 2)}┤{C_RESET}")
 
-    categories = ["gemini", "claude_gpt", "argon"]
+    categories = ["gemini", "claude_gpt", "gemini4"]
 
     for c_idx, cat_key in enumerate(categories):
         cfg = LIMIT_CONFIG[cat_key]

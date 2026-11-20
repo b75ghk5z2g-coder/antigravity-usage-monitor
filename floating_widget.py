@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Antigravity Floating Monitor (Always on Top)
-Sleek, true-black OLED Bento HUD desktop widget.
+Sleek, true-black OLED Bento HUD desktop widget with live ticking clock.
 """
 
 import os
@@ -24,7 +24,7 @@ from datetime import datetime, timezone, timedelta
 try:
     from usage import parse_events_by_category
 except Exception as e:
-    parse_events_by_category = lambda: {"gemini": [], "claude_gpt": [], "argon": []}
+    parse_events_by_category = lambda: {"gemini": [], "claude_gpt": [], "gemini4": []}
 
 # Deep OLED Black Theme
 BG_BLACK = "#000000"         # True black
@@ -52,11 +52,18 @@ def get_status_color(pct_used):
     if pct_used >= 70:
         return STATUS_RED
     elif pct_used >= 45:
-        return STATUS_YELLOW
+        return STATUS_ORANGE
     elif pct_used >= 25:
         return STATUS_YELLOW
     else:
         return STATUS_GREEN
+
+def format_tokens(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    elif n >= 1_000:
+        return f"{n / 1_000:.0f}k"
+    return str(n)
 
 class BentoBlackFloatingWidget:
     def __init__(self):
@@ -73,8 +80,8 @@ class BentoBlackFloatingWidget:
         self.root.overrideredirect(True)
         
         # Dimensions
-        self.width = 340
-        self.height = 340
+        self.width = 350
+        self.height = 360
         
         # Position at top-right of primary screen
         screen_w = self.root.winfo_screenwidth()
@@ -94,7 +101,7 @@ class BentoBlackFloatingWidget:
         self.create_header()
         
         self.content_frame = tk.Frame(self.container, bg=BG_BLACK)
-        self.content_frame.pack(fill="both", expand=True, padx=12, pady=10)
+        self.content_frame.pack(fill="both", expand=True, padx=12, pady=8)
 
         # Build Bento Tiles
         self.build_bento_tiles()
@@ -137,10 +144,16 @@ class BentoBlackFloatingWidget:
         left_box.bind("<B1-Motion>", self.do_drag)
 
         dot = tk.Label(left_box, text="●", font=("Segoe UI", 9), fg=STATUS_GREEN, bg=HEADER_BG)
-        dot.pack(side="left", padx=(0, 6))
+        dot.pack(side="left", padx=(0, 5))
         
-        title = tk.Label(left_box, text="Antigravity Usage", font=("Segoe UI", 9, "bold"), fg=TEXT_WHITE, bg=HEADER_BG)
+        title = tk.Label(left_box, text="AG Usage", font=("Segoe UI", 9, "bold"), fg=TEXT_WHITE, bg=HEADER_BG)
         title.pack(side="left")
+
+        # Ticking Live Time Indicator in Header
+        self.lbl_clock = tk.Label(self.header, text="", font=("Segoe UI", 8), fg=TEXT_DIM, bg=HEADER_BG)
+        self.lbl_clock.pack(side="left", padx=10)
+        self.lbl_clock.bind("<Button-1>", self.start_drag)
+        self.lbl_clock.bind("<B1-Motion>", self.do_drag)
 
         # Right control buttons
         btn_close = tk.Label(self.header, text="✕", font=("Segoe UI", 9), fg=TEXT_DIM, bg=HEADER_BG, cursor="hand2")
@@ -197,36 +210,36 @@ class BentoBlackFloatingWidget:
         c_wk_rem = int(round(100.0 - c_wk_used))
         c_wk_timer = self.calc_timer(c_wk, 168, now_utc)
 
-        # Argon
-        a_evs = events_by_cat.get("argon", [])
-        a_wk = [e for e in a_evs if e[0] >= (now_utc - timedelta(days=7))]
-        a_wk_tok = sum(e[1] for e in a_wk)
-        a_wk_used = min(100.0, max(0.0, (a_wk_tok / 20_000_000) * 100)) if a_wk_tok else 0.0
-        a_wk_rem = int(round(100.0 - a_wk_used))
-        a_wk_timer = self.calc_timer(a_wk, 168, now_utc)
+        # Gemini 4 Hydrogen
+        g4_evs = events_by_cat.get("gemini4", [])
+        g4_wk = [e for e in g4_evs if e[0] >= (now_utc - timedelta(days=7))]
+        g4_wk_tok = sum(e[1] for e in g4_wk)
+        g4_wk_used = min(100.0, max(0.0, (g4_wk_tok / 20_000_000) * 100)) if g4_wk_tok else 0.0
+        g4_wk_rem = int(round(100.0 - g4_wk_used))
+        g4_wk_timer = self.calc_timer(g4_wk, 168, now_utc)
 
         return {
             "gemini": {
                 "title": "GEMINI MODELS",
                 "color": COLOR_GEMINI,
                 "limits": [
-                    {"name": "5-Hour Limit", "rem": g_5h_rem, "used": g_5h_used, "timer": g_5h_timer},
-                    {"name": "Weekly Limit", "rem": g_wk_rem, "used": g_wk_used, "timer": g_wk_timer}
+                    {"name": "5h Remaining", "rem": g_5h_rem, "used": g_5h_used, "timer": g_5h_timer, "tok": g_5h_tok},
+                    {"name": "Weekly Remaining", "rem": g_wk_rem, "used": g_wk_used, "timer": g_wk_timer, "tok": g_wk_tok}
                 ]
             },
             "claude": {
                 "title": "CLAUDE AND GPT",
                 "color": COLOR_CLAUDE,
                 "limits": [
-                    {"name": "5-Hour Limit", "rem": c_5h_rem, "used": c_5h_used, "timer": c_5h_timer},
-                    {"name": "Weekly Limit", "rem": c_wk_rem, "used": c_wk_used, "timer": c_wk_timer}
+                    {"name": "5h Remaining", "rem": c_5h_rem, "used": c_5h_used, "timer": c_5h_timer, "tok": c_5h_tok},
+                    {"name": "Weekly Remaining", "rem": c_wk_rem, "used": c_wk_used, "timer": c_wk_timer, "tok": c_wk_tok}
                 ]
             },
-            "argon": {
-                "title": "GEMINI 4 ARGON",
+            "gemini4": {
+                "title": "GEMINI 4 HYDROGEN",
                 "color": COLOR_ARGON,
                 "limits": [
-                    {"name": "Weekly Limit", "rem": a_wk_rem, "used": a_wk_used, "timer": a_wk_timer}
+                    {"name": "Weekly Remaining", "rem": g4_wk_rem, "used": g4_wk_used, "timer": g4_wk_timer, "tok": g4_wk_tok}
                 ]
             }
         }
@@ -243,10 +256,10 @@ class BentoBlackFloatingWidget:
         rem_h = (rem_sec % 86400) // 3600
         rem_m = (rem_sec % 3600) // 60
         if rem_d > 0:
-            return f"{rem_d}d {rem_h}h"
+            return f"refreshes in {rem_d}d, {rem_h}h"
         elif rem_h > 0:
-            return f"{rem_h}h {rem_m}m"
-        return f"{rem_m}m"
+            return f"refreshes in {rem_h}h, {rem_m}m"
+        return f"refreshes in {rem_m}m"
 
     def build_bento_tiles(self):
         for w in self.content_frame.winfo_children():
@@ -256,7 +269,7 @@ class BentoBlackFloatingWidget:
         sections = [
             ("gemini", COLOR_GEMINI),
             ("claude", COLOR_CLAUDE),
-            ("argon", COLOR_ARGON)
+            ("gemini4", COLOR_ARGON)
         ]
 
         for sec_key, color in sections:
@@ -265,16 +278,16 @@ class BentoBlackFloatingWidget:
 
             # Card Header
             h_row = tk.Frame(card, bg=TILE_BG)
-            h_row.pack(fill="x", padx=8, pady=(4, 6))
+            h_row.pack(fill="x", padx=8, pady=(4, 4))
 
-            dot = tk.Label(h_row, text="✦", font=("Segoe UI", 9, "bold"), fg=color, bg=TILE_BG)
-            dot.pack(side="left", padx=(0, 5))
+            dot = tk.Label(h_row, text="✦", font=("Segoe UI", 8, "bold"), fg=color, bg=TILE_BG)
+            dot.pack(side="left", padx=(0, 4))
 
             lbl_title = tk.Label(h_row, text="", font=("Segoe UI", 8, "bold"), fg=color, bg=TILE_BG)
             lbl_title.pack(side="left")
 
             rows_data = []
-            num_limits = 1 if sec_key == "argon" else 2
+            num_limits = 1 if sec_key == "gemini4" else 2
 
             for i in range(num_limits):
                 l_row = tk.Frame(card, bg=TILE_BG)
@@ -286,11 +299,11 @@ class BentoBlackFloatingWidget:
                 lbl_pct = tk.Label(l_row, text="", font=("Segoe UI", 8, "bold"), fg=STATUS_GREEN, bg=TILE_BG)
                 lbl_pct.pack(side="right")
 
-                lbl_time = tk.Label(l_row, text="", font=("Segoe UI", 8), fg=TEXT_MUTED, bg=TILE_BG)
+                lbl_time = tk.Label(l_row, text="", font=("Segoe UI", 7), fg=TEXT_MUTED, bg=TILE_BG)
                 lbl_time.pack(side="right", padx=(0, 6))
 
                 canvas = tk.Canvas(card, height=4, bg=TRACK_BG, bd=0, highlightthickness=0)
-                canvas.pack(fill="x", padx=8, pady=(2, 5 if i == num_limits - 1 else 3))
+                canvas.pack(fill="x", padx=8, pady=(2, 4 if i == num_limits - 1 else 3))
 
                 rows_data.append({
                     "name": lbl_name,
@@ -306,6 +319,10 @@ class BentoBlackFloatingWidget:
 
     def refresh_stats(self):
         try:
+            # Update live clock in header
+            now_time = datetime.now().strftime("%H:%M:%S")
+            self.lbl_clock.configure(text=f"{now_time}")
+
             data = self.get_data()
 
             for sec_key, card_widgets in self.cards.items():
@@ -317,8 +334,19 @@ class BentoBlackFloatingWidget:
                     if idx < len(limits):
                         lim = limits[idx]
                         row["name"].configure(text=lim["name"])
-                        row["pct"].configure(text=f"{lim['rem']}%")
-                        row["time"].configure(text=f"({lim['timer']})")
+                        
+                        # Percentage styling
+                        pct_rem = lim["rem"]
+                        row["pct"].configure(
+                            text=f"{pct_rem}%",
+                            fg=STATUS_GREEN if pct_rem >= 70 else (STATUS_YELLOW if pct_rem >= 40 else STATUS_RED)
+                        )
+
+                        # Timer detail
+                        if lim["tok"] > 0:
+                            row["time"].configure(text=f"({format_tokens(lim['tok'])} · {lim['timer']})")
+                        else:
+                            row["time"].configure(text="(100% Free / Ready)")
 
                         # Progress Bar
                         canvas = row["canvas"]

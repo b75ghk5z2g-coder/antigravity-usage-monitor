@@ -31,8 +31,8 @@
 │   Weekly Limit Remaining:           100% (Fully refreshed) │
 │   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■                0 in window │
 │                                                            │
-│ ✦ GEMINI 4 ARGON                                           │
-│   Gemini 4 Argon Weekly Limit:      100% (Fully refreshed) │
+│ ✦ GEMINI 4 HYDROGEN                                        │
+│   Gemini 4 Hydrogen Weekly Limit:   100% (Fully refreshed) │
 │   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■                0 in window │
 │                                                            │
 ╰────────────────────────────────────────────────────────────╯
@@ -46,7 +46,7 @@
 - ⚡ **Real-Time Quota Tracking**: Matches Antigravity's official tier buckets:
   - **Gemini Models** (5-Hour Rolling Limit & Weekly Limit)
   - **Claude & GPT models** (5-Hour Rolling Limit & Weekly Limit)
-  - **Gemini 4 Argon** (Weekly Limit)
+  - **Gemini 4 Hydrogen** (Weekly Limit)
 - ⏳ **Live Countdown Timers**: Automatically calculates and displays time remaining until your 5-hour and 7-day rate limits fully reset.
 - 🎨 **Sleek Segmented UI**: Terminal card with colored block progress bars (Green ➔ Lime ➔ Yellow ➔ Orange ➔ Red) and token breakdown.
 - 📌 **Always-on-Top Floating Desktop Widget**: Compact dark-mode desktop card pinned above all windows (`floating.bat` / `floating_widget.py`).
