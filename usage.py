@@ -14,6 +14,7 @@ import glob
 import json
 import time
 import sqlite3
+from bisect import bisect_right
 from datetime import datetime, timezone, timedelta
 
 # Ensure UTF-8 output on Windows terminal
@@ -108,7 +109,7 @@ def parse_events_by_category():
 
     for db_path in db_files:
         cid = os.path.splitext(os.path.basename(db_path))[0]
-        step_to_cat = {}
+        step_ranges = []  # sorted list of (start_step, cat)
         fallback_cat = "gemini"
 
         try:
@@ -116,7 +117,7 @@ def parse_events_by_category():
             cur = con.cursor()
             cur.execute("SELECT idx, data FROM gen_metadata ORDER BY idx ASC")
             for idx, data in cur.fetchall():
-                pos = data.find(b"last_step_index")
+                pos = data.rfind(b"last_step_index")
                 m_resp = re.findall(rb'(gemini-(?!api\b)[a-zA-Z0-9.\-_]+|claude-[a-zA-Z0-9.\-_]+|gpt-[a-zA-Z0-9.\-_]+)', data)
                 model_raw = m_resp[-1].decode("ascii", errors="ignore") if m_resp else "gemini-4-hydrogen"
                 cat = classify_model(model_raw)
@@ -126,10 +127,13 @@ def parse_events_by_category():
                     length = data[pos + 16]
                     val_str = data[pos + 17 : pos + 17 + length].decode("ascii", errors="ignore")
                     if val_str.isdigit():
-                        step_to_cat[int(val_str) + 1] = cat
+                        step_ranges.append((int(val_str) + 1, cat))
             con.close()
         except Exception:
             pass
+
+        step_ranges.sort(key=lambda x: x[0])
+        step_starts = [x[0] for x in step_ranges]
 
         t_path = os.path.join(BRAIN_DIR, cid, ".system_generated", "logs", "transcript.jsonl")
         if not os.path.exists(t_path):
@@ -152,10 +156,14 @@ def parse_events_by_category():
                     created_at = d.get("created_at", "")
 
                     if (inp or out or cached) and created_at:
-                        cat = step_to_cat.get(st, fallback_cat)
+                        if st is not None and step_starts:
+                            pos_idx = bisect_right(step_starts, st) - 1
+                            cat = step_ranges[pos_idx][1] if pos_idx >= 0 else step_ranges[0][1]
+                        else:
+                            cat = fallback_cat
                         try:
                             dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                            events[cat].append((dt, inp + out, cached))
+                            events[cat].append((dt, inp + out + cached, cached))
                         except Exception:
                             pass
         except Exception:
